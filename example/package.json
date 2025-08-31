@@ -1,0 +1,15 @@
+{
+  "name": "hefs-cli-example",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Example CLI built with bn-cli-framework",
+  "bin": {
+    "hefs": "dist/cli/index.cjs"
+  },
+  "scripts": {
+    "build": "bn-cli-framework build"
+  },
+  "dependencies": {
+    "bn-cli-framework": "file:.."
+  }
+}
