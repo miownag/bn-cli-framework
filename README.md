@@ -14,7 +14,29 @@ I wanna be a billionaire, so I choose this name. Hope you can be one someday eit
 
 Now you can check the example in the `example` directory.
 
-PS: Soon I will describe how to use it in detail here.
+Or you can follow guide:
+
+1. Make Directory
+```bash
+mkdir my-cli
+cd my-cli
+```
+
+2. Init Project
+```bash
+npx bn-cli-framework init
+```
+
+3. Install Dependencies
+```bash
+npm install
+```
+
+4. Test it!
+```bash
+npm link
+my-cli hello Tom
+```
 
 ## Contributing
 

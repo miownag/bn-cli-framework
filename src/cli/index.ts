@@ -6,6 +6,10 @@ import { Command } from 'commander';
 import fs from 'fs-extra';
 import type { BuildConfig } from '../types';
 import { build, createDefaultConfig, loadConfig } from './build';
+import { exec, execSync } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 const program = new Command();
 
@@ -59,24 +63,46 @@ program
 program
   .command('init')
   .description('Initialize a new CLI project')
-  .option('-n, --name <name>', 'CLI binary name', 'my-cli')
   .option('-t, --typescript', 'Use TypeScript', true)
   .action(async (options) => {
     try {
       console.log(chalk.blue('🚀 Initializing new CLI project...'));
 
+      execSync('npm init -y', { stdio: 'inherit' });
+      const bnVersion = (await execAsync('npm info bn-cli-framework version')).stdout.trim();
+
+      // 修改 package.json
+      const packageJsonPath = path.join(process.cwd(), 'package.json');
+      const packageJson = await fs.readJSON(packageJsonPath);
+      const packageName = packageJson.name;
+
+      packageJson.dependencies = packageJson.dependencies || {};
+      packageJson.dependencies['bn-cli-framework'] = `^${bnVersion}`;
+
+      // if (options.typescript) {
+      //   packageJson.devDependencies = packageJson.devDependencies || {};
+      //   packageJson.devDependencies['typescript'] = '^5.0.0';
+      //   packageJson.devDependencies['@types/node'] = '^20.0.0';
+      // }
+
+      packageJson.scripts = packageJson.scripts || {};
+      packageJson.scripts.build = 'bn-cli-framework build';
+
+      await fs.writeJSON(packageJsonPath, packageJson, { spaces: 2 });
+      console.log(chalk.green('✓ Updated package.json'));
+
       // Create configuration file
       const config: BuildConfig = {
-        binName: options.name,
+        binName: packageName,
         version: '1.0.0',
-        description: `${options.name} CLI`,
+        description: `${packageName} CLI`,
         commandsDir: './src/commands',
         outDir: './dist/cli',
         typescript: options.typescript,
       };
 
       const configPath = path.join(process.cwd(), 'bn-cli.config.js');
-      const configContent = `export default ${JSON.stringify(config, null, 2)};\\n`;
+      const configContent = `export default ${JSON.stringify(config, null, 2)};\n`;
 
       await fs.writeFile(configPath, configContent, 'utf-8');
       console.log(
@@ -155,7 +181,7 @@ export default defineCommand({
       description: 'Name to greet',
       required: false,
     },
-  ],
+  ] as const,
   action: async ({ name }) => {
     console.log(\`Hello, \${name || 'World'}!\`);
   },
@@ -185,18 +211,18 @@ module.exports = defineCommand({
         ),
       );
 
-      console.log(chalk.green('\\n✅ Project initialized successfully!'));
-      console.log(chalk.gray('\\nNext steps:'));
+      console.log(chalk.green('\n✅ Project initialized successfully!'));
+      console.log(chalk.gray('\nNext steps:'));
       console.log(
         chalk.cyan(
           '  1. Install bn-cli-framework: npm install bn-cli-framework',
         ),
       );
       console.log(
-        chalk.cyan('  2. Build your CLI: npx bn-cli-framework build'),
+        chalk.cyan('  2. Build your CLI: npm run build'),
       );
       console.log(chalk.cyan('  3. Link your CLI: npm link'));
-      console.log(chalk.cyan(`  4. Use your CLI: ${options.name} hello`));
+      console.log(chalk.cyan(`  4. Use your CLI: ${packageName} hello`));
     } catch (error) {
       console.error(chalk.red('Initialization failed:'), error);
       process.exit(1);
