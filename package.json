@@ -1,6 +1,6 @@
 {
   "name": "bn-cli-framework",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "author": {
     "name": "Mio Wang",
@@ -22,8 +22,7 @@
     "dist/cli.js",
     "dist/index.js",
     "dist/index.cjs",
-    "dist/index.d.ts",
-    "dist/types.d.ts"
+    "dist/index.d.ts"
   ],
   "scripts": {
     "build": "rslib build",

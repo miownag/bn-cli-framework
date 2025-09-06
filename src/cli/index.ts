@@ -5,6 +5,7 @@ import path from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import fs from 'fs-extra';
+import { version } from '../../package.json';
 import type { BuildConfig } from '..';
 import { getPackageJSON, queryLatestVersions } from '../utils';
 import { build, createDefaultConfig, loadConfig } from './build';
@@ -13,7 +14,7 @@ const program = new Command();
 
 program
   .name('bn-cli-framework')
-  .version('1.0.0')
+  .version(version)
   .description('A convention-based CLI framework for Node.js');
 
 program
