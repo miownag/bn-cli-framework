@@ -41,7 +41,6 @@ export default defineCommand({
     const colorFn = colors[options.color] || chalk.blue;
     console.log(colorFn(finalGreeting));
 
-    // Add some fun ASCII art
     console.log(
       chalk.gray(`
     👋 Welcome to HEFS CLI!

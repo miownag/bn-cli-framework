@@ -1,15 +1,18 @@
 import path from 'node:path';
 import chalk from 'chalk';
 import fs from 'fs-extra';
-import type { BuildConfig, Plugin } from '../types';
-import { generateBinField, generateCLI, writeCLI } from './generator';
+import type { BuildConfig, Plugin } from '..';
+import { getPackageJSON } from '../utils';
+import { generateCLI, writeCLI } from './generator';
 import { scanCommands, validateCommands } from './scanner';
 
 export const build = async (config: BuildConfig, plugins: Plugin[] = []) => {
   try {
-    if (!config.binName) {
-      throw new Error('binName is required in build configuration');
+    const packageJson = await getPackageJSON();
+    if (!packageJson.bin || !Object.keys(packageJson.bin)[0]) {
+      throw new Error('bin field is required in package.json');
     }
+    const binName = Object.keys(packageJson.bin)[0];
 
     for (const plugin of plugins) {
       if (plugin.beforeScan) {
@@ -54,7 +57,7 @@ export const build = async (config: BuildConfig, plugins: Plugin[] = []) => {
     }
 
     console.log(chalk.gray('  Generating CLI code...'));
-    let code = await generateCLI(commands, config);
+    let code = await generateCLI(commands);
 
     for (const plugin of plugins) {
       if (plugin.afterGenerate) {
@@ -78,8 +81,6 @@ export const build = async (config: BuildConfig, plugins: Plugin[] = []) => {
     const outputFile = writeCLI(code, config);
     console.log(chalk.green(`  ✓ CLI written to ${outputFile}`));
 
-    await updatePackageJson(config);
-
     for (const plugin of plugins) {
       if (plugin.afterBuild) {
         await plugin.afterBuild(config);
@@ -89,49 +90,13 @@ export const build = async (config: BuildConfig, plugins: Plugin[] = []) => {
     console.log(chalk.green('\n✅ Build completed successfully!'));
     console.log(chalk.gray(`\n  To test your CLI, run:`));
     console.log(chalk.cyanBright(`    1. npm link`));
-    console.log(chalk.cyanBright(`    2. ${config.binName} <command>`));
+    console.log(chalk.cyanBright(`    2. ${binName} <command>`));
   } catch (error) {
     console.error(chalk.red('\n❌ Build failed:'));
     console.error(
       chalk.red(`   ${error instanceof Error ? error.message : error}`),
     );
     process.exit(1);
-  }
-};
-
-/**
- * Update package.json with bin field
- */
-const updatePackageJson = async (config: BuildConfig) => {
-  const packageJsonPath = path.join(process.cwd(), 'package.json');
-
-  if (!(await fs.pathExists(packageJsonPath))) {
-    console.log(
-      chalk.yellow('  ⚠️  package.json not found, skipping bin field update'),
-    );
-    return;
-  }
-
-  try {
-    const packageJson = await fs.readJson(packageJsonPath);
-    const binField = generateBinField(config);
-
-    const currentBin = packageJson.bin || {};
-    const needsUpdate =
-      JSON.stringify(currentBin) !==
-      JSON.stringify({ ...currentBin, ...binField });
-
-    if (needsUpdate) {
-      packageJson.bin = { ...currentBin, ...binField };
-      await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
-      console.log(chalk.green('  ✓ Updated package.json bin field'));
-    }
-  } catch (error) {
-    console.log(
-      chalk.yellow(
-        `  ⚠️  Failed to update package.json: ${error instanceof Error ? error.message : error}`,
-      ),
-    );
   }
 };
 
@@ -178,11 +143,7 @@ export const createDefaultConfig = (
 ): BuildConfig => {
   return {
     commandsDir: './src/commands',
-    outDir: './dist/cli',
-    binName: 'my-cli',
-    version: '1.0.0',
-    description: 'My CLI tool',
-    typescript: true,
+    outDir: './dist',
     ...overrides,
   };
 };

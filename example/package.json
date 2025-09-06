@@ -4,12 +4,14 @@
   "type": "module",
   "description": "Example CLI built with bn-cli-framework",
   "bin": {
-    "hefs": "dist/cli/index.cjs"
+    "hefs": "dist/index.cjs"
   },
   "scripts": {
     "build": "bn-cli-framework build"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "typescript": "^5.9.2",
     "bn-cli-framework": "file:.."
   }
 }

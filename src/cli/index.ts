@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import fs from 'fs-extra';
-import type { BuildConfig } from '../types';
+import type { BuildConfig } from '..';
+import { getPackageJSON, queryLatestVersions } from '../utils';
 import { build, createDefaultConfig, loadConfig } from './build';
-import { exec, execSync } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execAsync = promisify(exec);
 
 const program = new Command();
 
@@ -24,8 +22,6 @@ program
   .option('-c, --config <path>', 'Path to configuration file')
   .option('-o, --out-dir <path>', 'Output directory for generated CLI')
   .option('-s, --commands-dir <path>', 'Source directory containing commands')
-  .option('-b, --bin-name <name>', 'CLI binary name')
-  .option('--no-typescript', 'Disable TypeScript support')
   .action(async (options) => {
     try {
       let config: BuildConfig | null = null;
@@ -50,8 +46,6 @@ program
 
       if (options.outDir) config.outDir = options.outDir;
       if (options.commandsDir) config.commandsDir = options.commandsDir;
-      if (options.binName) config.binName = options.binName;
-      if (options.typescript === false) config.typescript = false;
 
       await build(config);
     } catch (error) {
@@ -63,27 +57,30 @@ program
 program
   .command('init')
   .description('Initialize a new CLI project')
-  .option('-t, --typescript', 'Use TypeScript', true)
-  .action(async (options) => {
+  .action(async () => {
     try {
       console.log(chalk.blue('🚀 Initializing new CLI project...'));
 
       execSync('npm init -y', { stdio: 'inherit' });
-      const bnVersion = (await execAsync('npm info bn-cli-framework version')).stdout.trim();
 
-      // 修改 package.json
+      const [bnVersion, tsVersion, nodeTypeVersion] = await queryLatestVersions(
+        ['bn-cli-framework', 'typescript', '@types/node'],
+      );
+
       const packageJsonPath = path.join(process.cwd(), 'package.json');
-      const packageJson = await fs.readJSON(packageJsonPath);
+      const packageJson = await getPackageJSON();
       const packageName = packageJson.name;
 
-      packageJson.dependencies = packageJson.dependencies || {};
-      packageJson.dependencies['bn-cli-framework'] = `^${bnVersion}`;
+      packageJson.bin = {
+        [packageName]: './dist/index.cjs',
+      };
+      packageJson.main = './dist/index.cjs';
+      packageJson.type = 'module';
 
-      // if (options.typescript) {
-      //   packageJson.devDependencies = packageJson.devDependencies || {};
-      //   packageJson.devDependencies['typescript'] = '^5.0.0';
-      //   packageJson.devDependencies['@types/node'] = '^20.0.0';
-      // }
+      packageJson.devDependencies = packageJson.devDependencies || {};
+      packageJson.devDependencies['bn-cli-framework'] = `^${bnVersion}`;
+      packageJson.devDependencies['typescript'] = `^${tsVersion}`;
+      packageJson.devDependencies['@types/node'] = `^${nodeTypeVersion}`;
 
       packageJson.scripts = packageJson.scripts || {};
       packageJson.scripts.build = 'bn-cli-framework build';
@@ -93,12 +90,8 @@ program
 
       // Create configuration file
       const config: BuildConfig = {
-        binName: packageName,
-        version: '1.0.0',
-        description: `${packageName} CLI`,
         commandsDir: './src/commands',
-        outDir: './dist/cli',
-        typescript: options.typescript,
+        outDir: './dist',
       };
 
       const configPath = path.join(process.cwd(), 'bn-cli.config.js');
@@ -109,19 +102,33 @@ program
         chalk.green(`✓ Created configuration file: bn-cli.config.js`),
       );
 
-      // Create commands directory
+      const tsConfig = `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "outDir": "./build",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}`;
+      await fs.writeFile('tsconfig.json', tsConfig, 'utf-8');
+      console.log(chalk.green('✓ Created tsconfig.json'));
+
       const commandsDir = path.join(
         process.cwd(),
         config.commandsDir as string,
       );
       await fs.ensureDir(commandsDir);
 
-      // Create example command
-      const ext = options.typescript ? '.ts' : '.js';
-      const indexPath = path.join(commandsDir, `index${ext}`);
+      const indexPath = path.join(commandsDir, 'index.ts');
 
-      const exampleCommand = options.typescript
-        ? `import { defineCommand } from 'bn-cli-framework';
+      const exampleCommand = `import { defineCommand } from 'bn-cli-framework';
 
 export default defineCommand({
   description: 'Main command',
@@ -131,31 +138,14 @@ export default defineCommand({
       description: 'Enable verbose output',
     },
   ],
-  action: async (options = {}) => {
-    console.log('Hello from ${options.name}!');
-    if (options.verbose) {
+  action: async (options: { verbose: any } | undefined) => {
+    console.log('Hello from ${packageName}!');
+    if (options?.verbose) {
       console.log('Verbose mode enabled');
     }
   },
 });
-`
-        : `const { defineCommand } = require('bn-cli-framework');
 
-module.exports = defineCommand({
-  description: 'Main command',
-  options: [
-    {
-      flags: '-v, --verbose',
-      description: 'Enable verbose output',
-    },
-  ],
-  action: async (options = {}) => {
-    console.log('Hello from ${options.name}!');
-    if (options.verbose) {
-      console.log('Verbose mode enabled');
-    }
-  },
-});
 `;
 
       await fs.writeFile(indexPath, exampleCommand, 'utf-8');
@@ -168,10 +158,9 @@ module.exports = defineCommand({
       // Create hello subcommand
       const helloDir = path.join(commandsDir, 'hello');
       await fs.ensureDir(helloDir);
-      const helloPath = path.join(helloDir, `index${ext}`);
+      const helloPath = path.join(helloDir, 'index.ts');
 
-      const helloCommand = options.typescript
-        ? `import { defineCommand } from 'bn-cli-framework';
+      const helloCommand = `import { defineCommand } from 'bn-cli-framework';
 
 export default defineCommand({
   description: 'Say hello',
@@ -186,22 +175,7 @@ export default defineCommand({
     console.log(\`Hello, \${name || 'World'}!\`);
   },
 });
-`
-        : `const { defineCommand } = require('bn-cli-framework');
 
-module.exports = defineCommand({
-  description: 'Say hello',
-  arguments: [
-    {
-      name: 'name',
-      description: 'Name to greet',
-      required: false,
-    },
-  ],
-  action: async ({ name }) => {
-    console.log(\`Hello, \${name || 'World'}!\`);
-  },
-});
 `;
 
       await fs.writeFile(helloPath, helloCommand, 'utf-8');
@@ -213,14 +187,8 @@ module.exports = defineCommand({
 
       console.log(chalk.green('\n✅ Project initialized successfully!'));
       console.log(chalk.gray('\nNext steps:'));
-      console.log(
-        chalk.cyan(
-          '  1. Install bn-cli-framework: npm install bn-cli-framework',
-        ),
-      );
-      console.log(
-        chalk.cyan('  2. Build your CLI: npm run build'),
-      );
+      console.log(chalk.cyan('  1. Install dependencies: npm install'));
+      console.log(chalk.cyan('  2. Build your CLI: npm run build'));
       console.log(chalk.cyan('  3. Link your CLI: npm link'));
       console.log(chalk.cyan(`  4. Use your CLI: ${packageName} hello`));
     } catch (error) {

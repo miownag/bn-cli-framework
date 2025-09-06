@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'fs-extra';
-import type { BuildConfig, ScannedCommand } from '../types';
+import type { BuildConfig, ScannedCommand } from '..';
+import { getPackageJSON } from '../utils';
 
 const getCommanderActionContent = (program: string, configString: string) => {
   return `    ${program}.action((...args) => {
@@ -17,21 +18,18 @@ const getCommanderActionContent = (program: string, configString: string) => {
           });`;
 };
 
-export const generateCLI = async (
-  commands: ScannedCommand[],
-  config: BuildConfig,
-) => {
+export const generateCLI = async (commands: ScannedCommand[]) => {
   const imports = generateImports(commands);
-
-  const registrations = await generateRegistrations(commands, config);
-
-  const template = config.template || getDefaultTemplate();
+  const registrations = await generateRegistrations(commands);
+  const template = getDefaultTemplate();
+  const packageJson = await getPackageJSON();
+  const binName = Object.keys(packageJson.bin)[0];
 
   const code = template
     .replace('{{IMPORTS}}', imports)
-    .replace('{{BIN_NAME}}', config.binName)
-    .replace('{{VERSION}}', config.version || '1.0.0')
-    .replace('{{DESCRIPTION}}', config.description || `${config.binName} CLI`)
+    .replace('{{BIN_NAME}}', binName)
+    .replace('{{VERSION}}', packageJson.version || '1.0.0')
+    .replace('{{DESCRIPTION}}', packageJson.description || `${binName} CLI`)
     .replace('{{REGISTRATIONS}}', registrations);
 
   return code;
@@ -58,20 +56,19 @@ const generateImports = (commands: ScannedCommand[]) => {
   return imports.join('\n');
 };
 
-const generateRegistrations = async (
-  commands: ScannedCommand[],
-  config: BuildConfig,
-) => {
+const generateRegistrations = async (commands: ScannedCommand[]) => {
   const registrations: string[] = [];
   const commandMap = new Map<string, string>();
+  const packageJson = await getPackageJSON();
+  const binName = Object.keys(packageJson.bin)[0];
 
   // Create main program
   registrations.push(`const program = new Command();`);
   registrations.push(`program`);
-  registrations.push(`  .name('${config.binName}')`);
-  registrations.push(`  .version('${config.version || '1.0.0'}')`);
+  registrations.push(`  .name('${binName}')`);
+  registrations.push(`  .version('${packageJson.version || '1.0.0'}')`);
   registrations.push(
-    `  .description('${config.description || `${config.binName} CLI`}');`,
+    `  .description('${packageJson.description || `${binName} CLI`}');`,
   );
   registrations.push(``);
 
@@ -229,11 +226,9 @@ const getDefaultTemplate = () => {
 
 export const writeCLI = (code: string, config: BuildConfig) => {
   const tempDir = path.resolve(process.cwd(), '.temp');
-  const outDir = path.resolve(process.cwd(), config.outDir || './dist/cli');
-  const isTypeScript = config.typescript !== false;
-  const ext = isTypeScript ? '.ts' : '.js';
-  const outFile = path.join(outDir, `index.cjs`);
-  const tempFile = path.join(tempDir, `index${ext}`);
+  const outDir = path.resolve(process.cwd(), config.outDir || './dist');
+  const outFile = path.join(outDir, 'index.cjs');
+  const tempFile = path.join(tempDir, 'index.ts');
 
   fs.ensureDirSync(tempDir);
   fs.writeFileSync(tempFile, code, 'utf-8');
@@ -260,11 +255,4 @@ export const writeCLI = (code: string, config: BuildConfig) => {
   }
 
   return outFile;
-};
-
-export const generateBinField = (config: BuildConfig) => {
-  const binPath = path.join(config.outDir || './dist/cli', 'index.cjs');
-  return {
-    [config.binName]: binPath,
-  };
 };

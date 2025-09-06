@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'fs-extra';
 import { glob } from 'glob';
-import type { BuildConfig, ScannedCommand } from '../types';
+import type { BuildConfig, ScannedCommand } from '..';
 
 export const scanCommands = async (
   config: BuildConfig,
@@ -15,10 +15,13 @@ export const scanCommands = async (
     throw new Error(`Commands directory not found: ${commandsDir}`);
   }
 
-  const patterns =
-    config.typescript !== false
-      ? ['**/*.ts', '**/*.js', '!**/*.d.ts', '!**/*.test.*', '!**/*.spec.*']
-      : ['**/*.js', '!**/*.test.*', '!**/*.spec.*'];
+  const patterns = [
+    '**/*.ts',
+    '**/*.js',
+    '!**/*.d.ts',
+    '!**/*.test.*',
+    '!**/*.spec.*',
+  ];
 
   const files = await glob(patterns, {
     cwd: commandsDir,
