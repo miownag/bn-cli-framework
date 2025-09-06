@@ -11,7 +11,10 @@ type ExtractArgumentNames<T extends readonly CommandArgument[]> = {
 
 type ExtractHandlerArguments<
   T extends readonly CommandArgument[] = readonly CommandArgument[],
-> = [{ [K in ExtractArgumentNames<T>]: string }, { [key: string]: string }?];
+> = [
+  { [K in ExtractArgumentNames<T>]: string },
+  { [key: string]: string } | undefined,
+];
 
 /**
  * Command configuration

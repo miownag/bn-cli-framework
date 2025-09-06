@@ -139,7 +139,7 @@ export default defineCommand({
       description: 'Enable verbose output',
     },
   ],
-  action: async (options: { verbose: any } | undefined) => {
+  action: async (options = {}) => {
     console.log('Hello from ${packageName}!');
     if (options?.verbose) {
       console.log('Verbose mode enabled');

@@ -16,7 +16,7 @@ export default defineCommand({
       defaultValue: false,
     },
   ],
-  action: async (options) => {
+  action: async (options = {}) => {
     console.log(chalk.blue('Welcome to HEFS CLI!'));
     console.log(chalk.gray('A CLI tool built with bn-cli-framework'));
 
